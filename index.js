@@ -1,16 +1,18 @@
-const express = require("express");
+const http = require("http");
 const https = require("https");
-const app = express();
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  next();
-});
-
-app.get("/etsy", (req, res) => {
-  const { path, key } = req.query;
-  if (!path || !key) return res.status(400).json({ error: "Missing path or key" });
+const server = http.createServer((req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   
+  const url = new URL(req.url, "http://localhost");
+  const path = url.searchParams.get("path");
+  const key = url.searchParams.get("key");
+
+  if (!path || !key) {
+    res.writeHead(400);
+    return res.end(JSON.stringify({ error: "Missing path or key" }));
+  }
+
   const options = {
     hostname: "openapi.etsy.com",
     path: `/v3/application/${path}`,
@@ -20,11 +22,11 @@ app.get("/etsy", (req, res) => {
   https.get(options, r => {
     let data = "";
     r.on("data", chunk => data += chunk);
-    r.on("end", () => {
-      try { res.json(JSON.parse(data)); }
-      catch(e) { res.status(500).json({ error: "Parse error" }); }
-    });
-  }).on("error", e => res.status(500).json({ error: e.message }));
+    r.on("end", () => res.end(data));
+  }).on("error", e => {
+    res.writeHead(500);
+    res.end(JSON.stringify({ error: e.message }));
+  });
 });
 
-app.listen(process.env.PORT || 3000);
+server.listen(process.env.PORT || 3000);
